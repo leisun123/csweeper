@@ -43,31 +43,20 @@ pub fn glob_paths(pattern: &str) -> Vec<PathBuf> {
     }
 }
 
+/// 提权检测：`net session` 只有管理员能成功返回。
+/// 不用 OpenProcessToken 是因为该函数在 windows-sys 各版本模块路径不稳定
+/// （0.59 中不在 Security/Foundation/Threading），CI 实测 E0432。
 #[cfg(windows)]
 pub fn is_elevated() -> bool {
-    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
-    use windows_sys::Win32::Security::{
-        GetTokenInformation, OpenProcessToken, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
-    };
-    use windows_sys::Win32::System::Threading::GetCurrentProcess;
-
-    unsafe {
-        let mut token: HANDLE = std::ptr::null_mut();
-        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) == 0 {
-            return false;
-        }
-        let mut elev: TOKEN_ELEVATION = std::mem::zeroed();
-        let mut ret_len = 0u32;
-        let ok = GetTokenInformation(
-            token,
-            TokenElevation,
-            &mut elev as *mut _ as *mut core::ffi::c_void,
-            std::mem::size_of::<TOKEN_ELEVATION>() as u32,
-            &mut ret_len,
-        );
-        CloseHandle(token);
-        ok != 0 && elev.TokenIsElevated != 0
-    }
+    use std::sync::OnceLock;
+    static ELEVATED: OnceLock<bool> = OnceLock::new();
+    *ELEVATED.get_or_init(|| {
+        std::process::Command::new("net")
+            .arg("session")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    })
 }
 
 #[cfg(not(windows))]

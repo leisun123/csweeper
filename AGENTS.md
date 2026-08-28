@@ -42,9 +42,9 @@ CI：push 到 GitHub 后 `.github/workflows/build-windows.yml` 自动出 exe（A
 1. `util.rs::glob_paths` — `glob` crate 处理 `C:/...` 盘符绝对路径 + 通配符（如
    `%LOCALAPPDATA%\*\Saved\Logs`）在真机的行为。**症状：某些规则扫出 0。**
    若出问题：改用手动拆分父目录 + `read_dir` 匹配单层通配。
-2. `util.rs` 的 windows-sys 调用 — `is_elevated`（OpenProcessToken/GetTokenInformation）、
-   `drive_info`（GetDiskFreeSpaceExW）在 MSVC 下的签名/链接。已通过 cargo check（mac 侧跳过编译），
-   真机编译如报错优先核对 windows-sys 0.59 的参数类型。
+2. `util.rs::is_elevated` 已改为 `net session` 退出码检测——OpenProcessToken 在 windows-sys 0.59
+   中模块路径不稳定（不在 Security/Foundation/Threading），CI 首跑 E0432 后移除。
+   `drive_info`（GetDiskFreeSpaceExW）已通过 CI 的 MSVC 编译验证，运行时行为待真机确认。
 3. `open_path` 的 `explorer /select,"path"` raw_arg 引号解析。
 4. `special.rs` 的 PowerShell 命令 — Clear-RecycleBin 需 PowerShell 5+（Win10/11 自带）；
    `-Verb RunAs` 触发 UAC 后 DISM/powercfg 是否真正执行。
